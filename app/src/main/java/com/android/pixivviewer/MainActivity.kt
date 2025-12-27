@@ -17,8 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -124,7 +123,7 @@ fun MainContent(loginViewModel: LoginViewModel, homeViewModel: HomeViewModel) {
 
 enum class MainTab(val label: String, val icon: ImageVector) {
     Home("首頁", Icons.Default.Home),
-    Ranking("排行", Icons.Default.Star),
+    Ranking("排行", Icons.Default.Leaderboard),
     NewWorks("新作", Icons.Default.AutoAwesome),
     Profile("我的", Icons.Default.Person)
 }

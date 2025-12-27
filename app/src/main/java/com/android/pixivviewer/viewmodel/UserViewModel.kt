@@ -6,12 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.android.pixivviewer.network.Illust
 import com.android.pixivviewer.network.NetworkModule
 import com.android.pixivviewer.network.UserDetailResponse
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 class UserViewModel : ViewModel() {
 
@@ -92,6 +92,27 @@ class UserViewModel : ViewModel() {
                 val updatedUser = currentDetail.user.copy(isFollowed = !isFollowing)
                 _userDetail.value = currentDetail.copy(user = updatedUser)
 
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun toggleBookmark(context: Context, illustId: Long) {
+        viewModelScope.launch {
+            val targetIllust = _userIllusts.value.find { it.id == illustId } ?: return@launch
+            try {
+                val api = NetworkModule.provideApiClient(context)
+                if (targetIllust.isBookmarked) {
+                    api.deleteBookmark(illustId)
+                } else {
+                    api.addBookmark(illustId)
+                }
+                // 更新 UI
+                val updatedList = _userIllusts.value.map {
+                    if (it.id == illustId) it.copy(isBookmarked = !it.isBookmarked) else it
+                }.toImmutableList()
+                _userIllusts.value = updatedList
             } catch (e: Exception) {
                 e.printStackTrace()
             }

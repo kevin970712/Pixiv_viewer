@@ -19,7 +19,8 @@ object SearchHistoryManager {
     fun getHistory(context: Context): ImmutableList<String> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         // ✨ 优化：按添加顺序显示，最新的在最上面
-        return prefs.getStringSet(KEY_HISTORY, emptySet())?.toList()?.reversed()?.toImmutableList() ?: persistentListOf()
+        return prefs.getStringSet(KEY_HISTORY, emptySet())?.toList()?.reversed()?.toImmutableList()
+            ?: persistentListOf()
     }
 
     fun addHistory(context: Context, query: String) {
@@ -118,5 +119,26 @@ class SearchViewModel : ViewModel() {
 
     fun clearSearch() {
         _searchResults.value = persistentListOf()
+    }
+
+    fun toggleBookmark(context: Context, illustId: Long) {
+        viewModelScope.launch {
+            val targetIllust = _searchResults.value.find { it.id == illustId } ?: return@launch
+            try {
+                val api = NetworkModule.provideApiClient(context)
+                if (targetIllust.isBookmarked) {
+                    api.deleteBookmark(illustId)
+                } else {
+                    api.addBookmark(illustId)
+                }
+                // 更新 UI
+                val updatedList = _searchResults.value.map {
+                    if (it.id == illustId) it.copy(isBookmarked = !it.isBookmarked) else it
+                }.toImmutableList()
+                _searchResults.value = updatedList
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 }

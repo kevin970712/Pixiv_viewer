@@ -1,78 +1,72 @@
 package com.android.pixivviewer.ui
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Tab
+import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.android.pixivviewer.network.User
-import com.android.pixivviewer.ui.components.FollowingUserCard
-import com.android.pixivviewer.ui.components.IllustStaggeredGrid
-import com.android.pixivviewer.ui.components.LoadingIndicator
 import com.android.pixivviewer.viewmodel.NewWorksPage
 import com.android.pixivviewer.viewmodel.NewWorksViewModel
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewWorksScreen(viewModel: NewWorksViewModel = viewModel()) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
-    val pagerState = rememberPagerState { NewWorksPage.entries.size }
+    // ✨ 1. PagerState 不再需要，改回 TabIndex
+    var selectedTabIndex by remember { mutableStateOf(0) }
     val pages = remember { NewWorksPage.entries }
 
     val isRefreshing by viewModel.isRefreshing.collectAsState()
 
-    // ✨ 關鍵修正 1：創建穩定的 Lambda
-    val onRefresh = remember<() -> Unit>(viewModel, context, pages, pagerState) {
-        {
-            when (pages[pagerState.currentPage]) {
-                NewWorksPage.Activity -> viewModel.refreshActivity(context)
-                NewWorksPage.Following -> viewModel.refreshFollowing(context)
-            }
+    val onRefresh = {
+        when (pages[selectedTabIndex]) {
+            NewWorksPage.Activity -> viewModel.refreshActivity(context)
+            NewWorksPage.Following -> viewModel.refreshFollowing(context)
         }
     }
-    val onTabClick = remember<(Int) -> Unit>(scope, pagerState) {
-        { index ->
-            scope.launch { pagerState.animateScrollToPage(index) }
-        }
-    }
-    val onFollowClick = remember<(User) -> Unit>(viewModel, context) {
-        { user -> viewModel.toggleFollow(context, user) }
-    }
-    val onLoadMoreActivity = remember<() -> Unit>(viewModel, context) {
-        { viewModel.loadMoreActivity(context) }
-    }
-    val onLoadMoreFollowing = remember<() -> Unit>(viewModel, context) {
-        { viewModel.loadMoreFollowing(context) }
-    }
-
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        PrimaryTabRow(
-            selectedTabIndex = pagerState.currentPage
+        SecondaryTabRow(
+            selectedTabIndex = selectedTabIndex
         ) {
             pages.forEachIndexed { index, page ->
                 Tab(
-                    selected = pagerState.currentPage == index,
-                    onClick = { onTabClick(index) }, // ✨ 使用穩定的 Lambda
+                    selected = selectedTabIndex == index,
+                    // ✨ 2. onClick 直接更新 TabIndex
+                    onClick = { selectedTabIndex = index },
                     text = {
-                        Text(when(page) {
-                            NewWorksPage.Activity -> "動態"
-                            NewWorksPage.Following -> "關注"
-                        })
+                        Text(
+                            when (page) {
+                                NewWorksPage.Activity -> "動態"
+                                NewWorksPage.Following -> "關注"
+                            }
+                        )
                     }
                 )
             }
@@ -80,35 +74,52 @@ fun NewWorksScreen(viewModel: NewWorksViewModel = viewModel()) {
 
         PullToRefreshBox(
             isRefreshing = isRefreshing,
-            onRefresh = onRefresh // ✨ 使用穩定的 Lambda
+            onRefresh = onRefresh
         ) {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { pageIndex ->
-                when (pages[pageIndex]) {
+            // ✨ 3. 移除 HorizontalPager，直接使用 Box + when 判斷
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (pages[selectedTabIndex]) {
                     NewWorksPage.Activity -> {
                         val illusts by viewModel.activityIllusts.collectAsState()
+                        // ✨ 當 Tab 第一次被選中時，觸發載入
                         LaunchedEffect(Unit) { viewModel.fetchActivity(context) }
 
-                        IllustStaggeredGrid(
-                            illusts = illusts,
-                            onLoadMore = onLoadMoreActivity // ✨ 使用穩定的 Lambda
-                        )
+                        if (illusts.isEmpty() && !isRefreshing) {
+                            LoadingIndicator()
+                        } else {
+                            IllustStaggeredGrid(
+                                illusts = illusts,
+                                onLoadMore = { viewModel.loadMoreActivity(context) },
+                                onBookmarkClick = { illustId ->
+                                    viewModel.toggleBookmark(
+                                        context,
+                                        illustId
+                                    )
+                                }
+                            )
+                        }
+
                     }
+
                     NewWorksPage.Following -> {
                         val users by viewModel.followingUsers.collectAsState()
                         LaunchedEffect(Unit) { viewModel.fetchFollowing(context) }
 
-                        LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            items(users, key = { it.user.id }) { userPreview ->
-                                FollowingUserCard(
-                                    preview = userPreview,
-                                    onFollowClick = onFollowClick // ✨ 使用穩定的 Lambda
-                                )
+                        if (users.isEmpty() && !isRefreshing) {
+                            LoadingIndicator()
+                        } else {
+                            LazyColumn(
+                                contentPadding = PaddingValues(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(users, key = { it.user.id }) { userPreview ->
+                                    FollowingUserCard(
+                                        preview = userPreview,
+                                        onFollowClick = { user ->
+                                            viewModel.toggleFollow(context, user)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

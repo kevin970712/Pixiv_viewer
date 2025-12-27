@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -47,8 +46,6 @@ import coil.request.ImageRequest
 import com.android.pixivviewer.FollowingActivity
 import com.android.pixivviewer.SettingsActivity
 import com.android.pixivviewer.network.UserDetailResponse
-import com.android.pixivviewer.ui.components.IllustStaggeredGrid
-import com.android.pixivviewer.ui.components.StatItem
 import com.android.pixivviewer.utils.ImageLoaderFactory
 import com.android.pixivviewer.utils.TokenManager
 import com.android.pixivviewer.viewmodel.ProfileViewModel
@@ -107,12 +104,20 @@ fun ProfileScreen(
                     end = 12.dp,
                     bottom = 80.dp // 为 FAB 预留足够空间
                 ),
+                onBookmarkClick = { illustId ->
+                    viewModel.toggleBookmark(context, illustId)
+                },
                 headerContent = {
                     Column {
-                        if (userDetail != null) {
-                            UserProfileHeader(userDetail!!)
-                        } else {
-                            Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        userDetail?.let { detail ->
+                            UserProfileHeader(detail)
+                        } ?: run {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 if (isRefreshing) CircularProgressIndicator()
                             }
                         }
@@ -120,7 +125,12 @@ fun ProfileScreen(
                             text = "收藏的作品 (${userDetail?.profile?.totalBookmarks ?: 0})",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 16.dp, bottom = 1.dp, start = 4.dp, end = 8.dp) // Header 内部的 padding
+                            modifier = Modifier.padding(
+                                top = 16.dp,
+                                bottom = 1.dp,
+                                start = 4.dp,
+                                end = 8.dp
+                            ) // Header 内部的 padding
                         )
                     }
                 }

@@ -18,7 +18,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.android.pixivviewer.ui.components.IllustStaggeredGrid
 import com.android.pixivviewer.viewmodel.UserBookmarksViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -1,7 +1,9 @@
-package com.android.pixivviewer.ui.components
+package com.android.pixivviewer.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,20 +44,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.android.pixivviewer.DetailActivity
 import com.android.pixivviewer.UserActivity
 import com.android.pixivviewer.network.Illust
 import com.android.pixivviewer.network.User
-import kotlinx.collections.immutable.ImmutableList
 import com.android.pixivviewer.network.UserPreview
 import com.android.pixivviewer.utils.ImageLoaderFactory
+import kotlinx.collections.immutable.ImmutableList
 
 // ===== 1. 瀑布流網格 (從 IllustComponents.kt 搬過來) =====
 @Composable
@@ -65,7 +71,8 @@ fun IllustStaggeredGrid(
     gridState: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
     contentPadding: PaddingValues = PaddingValues(12.dp),
     headerContent: (@Composable () -> Unit)? = null,
-    onLoadMore: () -> Unit = {}
+    onLoadMore: () -> Unit = {},
+    onBookmarkClick: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     LazyVerticalStaggeredGrid(
@@ -89,7 +96,7 @@ fun IllustStaggeredGrid(
                     val intent = DetailActivity.newIntent(context, illust.id)
                     context.startActivity(intent)
                 },
-                onBookmarkClick = { /* TODO */ }
+                onBookmarkClick = { onBookmarkClick(illust.id) }
             )
         }
         item(span = StaggeredGridItemSpan.FullLine) { Spacer(modifier = Modifier.height(60.dp)) }
@@ -110,14 +117,16 @@ fun HomeIllustCard(
     val clampedRatio = aspectRatio.coerceIn(0.5f, 2.0f)
 
     OutlinedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onCardClick),
+        modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column {
-            Box(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onCardClick)
+            ) {
                 AsyncImage(
                     model = ImageRequest.Builder(context).data(illust.imageUrls.medium).build(),
                     imageLoader = ImageLoaderFactory.getPixivImageLoader(context),
@@ -128,6 +137,32 @@ fun HomeIllustCard(
                         .aspectRatio(clampedRatio)
                         .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                 )
+                if (illust.pageCount > 1) {
+                    Text(
+                        text = "${illust.pageCount}P",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                if (illust.illustAiType > 0) {
+                    Text(
+                        text = "AI",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
             Row(
                 modifier = Modifier
@@ -135,7 +170,11 @@ fun HomeIllustCard(
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClick = onCardClick)
+                ) {
                     Text(
                         text = illust.title,
                         style = MaterialTheme.typography.bodyLarge,
@@ -279,5 +318,23 @@ fun StatItem(count: Int, label: String, modifier: Modifier = Modifier) {
 fun LoadingIndicator() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         CircularProgressIndicator()
+    }
+}
+
+@Composable
+fun Modifier.longPressToCopy(
+    textToCopy: String,
+    toastMessage: String = "已複製"
+): Modifier {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+
+    return this.pointerInput(Unit) {
+        detectTapGestures(
+            onLongPress = {
+                clipboardManager.setText(AnnotatedString(textToCopy))
+                Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 }

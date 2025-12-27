@@ -5,12 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.android.pixivviewer.network.Illust
 import com.android.pixivviewer.network.NetworkModule
+import com.android.pixivviewer.utils.ImageSaver
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.collections.immutable.ImmutableList // ✨ Import
-import kotlinx.collections.immutable.persistentListOf // ✨ Import
-import kotlinx.collections.immutable.toImmutableList
 
 // 定義 UI 的狀態
 sealed class DetailUiState {
@@ -130,13 +131,17 @@ class DetailViewModel : ViewModel() {
 
     fun downloadIllust(context: Context, illust: Illust) {
         viewModelScope.launch {
-            // 修正邏輯：只從 metaSinglePage 或 metaPages 找原圖，不讀取 illust.imageUrls.original
-            val imageUrl = illust.metaSinglePage?.originalImageUrl
-                ?: illust.metaPages.firstOrNull()?.imageUrls?.original
-                ?: illust.imageUrls.large // 如果都沒有，退而求其次下載 Large
+            val originalImageUrl = if (illust.pageCount == 1) {
+                illust.metaSinglePage?.originalImageUrl
+            } else {
+                illust.metaPages.firstOrNull()?.imageUrls?.original
+            }
+            // 如果找不到原图，就退而求其次下载 large 或 medium
+            val finalUrl = originalImageUrl
+                ?: illust.imageUrls.large
 
-            if (imageUrl != null) {
-                com.android.pixivviewer.utils.ImageSaver.saveImage(context, imageUrl, illust.title)
+            if (finalUrl != null) {
+                ImageSaver.saveImage(context, finalUrl, illust.title)
             }
         }
     }

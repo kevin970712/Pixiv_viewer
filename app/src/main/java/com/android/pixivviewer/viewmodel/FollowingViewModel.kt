@@ -6,12 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.android.pixivviewer.network.NetworkModule
 import com.android.pixivviewer.network.User
 import com.android.pixivviewer.network.UserPreview
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.persistentListOf
 
 // ✨ 我們需要一個新的 API 接口來處理分頁
 
@@ -76,7 +76,8 @@ class FollowingViewModel : ViewModel() {
                 // 為了簡單起見，我們直接使用主 API Client
                 val api = NetworkModule.provideApiClient(context) as FollowingApi
                 val response = api.getNextUserFollowingPage(nextUrl!!)
-                _followingUsers.value = (_followingUsers.value + response.userPreviews).toImmutableList()
+                _followingUsers.value =
+                    (_followingUsers.value + response.userPreviews).toImmutableList()
                 nextUrl = response.nextUrl
             } catch (e: Exception) {
                 e.printStackTrace()

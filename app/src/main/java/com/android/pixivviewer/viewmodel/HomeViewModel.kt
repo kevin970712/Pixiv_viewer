@@ -58,7 +58,8 @@ class HomeViewModel : ViewModel() {
             try {
                 val api = NetworkModule.provideApiClient(context)
                 val response = api.getNextPage(recommendNextUrl!!)
-                _recommendIllusts.value = (_recommendIllusts.value + response.illusts).toImmutableList()
+                _recommendIllusts.value =
+                    (_recommendIllusts.value + response.illusts).toImmutableList()
                 recommendNextUrl = response.nextUrl
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -101,6 +102,31 @@ class HomeViewModel : ViewModel() {
                 e.printStackTrace()
             } finally {
                 isLoadingMore = false
+            }
+        }
+    }
+
+    fun toggleBookmark(context: Context, illustId: Long, isRanking: Boolean) {
+        viewModelScope.launch {
+            val listToUpdate = if (isRanking) _rankingIllusts else _recommendIllusts
+            val targetIllust = listToUpdate.value.find { it.id == illustId } ?: return@launch
+
+            try {
+                val api = NetworkModule.provideApiClient(context)
+                if (targetIllust.isBookmarked) {
+                    api.deleteBookmark(illustId)
+                } else {
+                    api.addBookmark(illustId)
+                }
+
+                // 更新 UI
+                val updatedList = listToUpdate.value.map {
+                    if (it.id == illustId) it.copy(isBookmarked = !it.isBookmarked) else it
+                }.toImmutableList()
+                listToUpdate.value = updatedList
+
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }

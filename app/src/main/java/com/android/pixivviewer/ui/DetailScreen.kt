@@ -1,8 +1,11 @@
 package com.android.pixivviewer.ui
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -63,18 +67,18 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.android.pixivviewer.DetailActivity
+import com.android.pixivviewer.ImageViewerActivity
 import com.android.pixivviewer.SearchActivity
 import com.android.pixivviewer.UserActivity
 import com.android.pixivviewer.network.Illust
 import com.android.pixivviewer.network.Tag
-import com.android.pixivviewer.ui.components.HomeIllustCard
 import com.android.pixivviewer.utils.ImageLoaderFactory
 import com.android.pixivviewer.utils.TimeUtil
 import com.android.pixivviewer.viewmodel.DetailUiState
 import com.android.pixivviewer.viewmodel.DetailViewModel
-import me.saket.telephoto.zoomable.coil.ZoomableAsyncImage
-import me.saket.telephoto.zoomable.rememberZoomableImageState
-import me.saket.telephoto.zoomable.rememberZoomableState
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 
 // 主入口
 @Composable
@@ -88,11 +92,13 @@ fun DetailScreen(viewModel: DetailViewModel) {
                 CircularProgressIndicator()
             }
         }
+
         is DetailUiState.Error -> {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(text = "載入失敗: ${state.message}")
             }
         }
+
         is DetailUiState.Success -> {
             // ✨ 關鍵修正：將所有 Lambda 事件使用 remember 包裹以提升穩定性
 
@@ -105,7 +111,13 @@ fun DetailScreen(viewModel: DetailViewModel) {
             }
 
             val onToggleFollow = remember<() -> Unit>(viewModel, context, state.illust) {
-                { viewModel.toggleUserFollow(context, state.illust.user.id, state.illust.user.isFollowed) }
+                {
+                    viewModel.toggleUserFollow(
+                        context,
+                        state.illust.user.id,
+                        state.illust.user.isFollowed
+                    )
+                }
             }
 
             val onShareClick = remember<() -> Unit>(context, state.illust) {
@@ -141,7 +153,11 @@ fun DetailScreen(viewModel: DetailViewModel) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalLayoutApi::class,
+    ExperimentalPermissionsApi::class
+)
 @Composable
 fun IllustDetailContent(
     illust: Illust,
@@ -154,16 +170,30 @@ fun IllustDetailContent(
 ) {
     val context = LocalContext.current
 
-    val imageUrls = remember(illust) {
+    remember(illust) {
         if (illust.pageCount == 1) {
+            // 单图：优先 large，其次 medium
             listOf(
-                illust.metaSinglePage?.originalImageUrl ?: illust.imageUrls.large
-                ?: illust.imageUrls.medium
+                illust.imageUrls.large
+                    ?: illust.imageUrls.medium
             )
         } else {
-            illust.metaPages.map {
-                it.imageUrls.original ?: it.imageUrls.large ?: it.imageUrls.medium ?: ""
+            illust.metaPages.map { page ->
+                page.imageUrls.large
+                    ?: page.imageUrls.medium ?: ""
             }
+        }
+    }
+    val writePermissionState = rememberPermissionState(
+        Manifest.permission.WRITE_EXTERNAL_STORAGE
+    )
+    val downloadAction = {
+        // 在 Android 10+ 或权限已授予时，直接下载
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q || writePermissionState.status.isGranted) {
+            onDownloadClick()
+        } else {
+            // 否则，请求权限
+            writePermissionState.launchPermissionRequest()
         }
     }
 
@@ -173,7 +203,7 @@ fun IllustDetailContent(
             BottomActionBar(
                 isBookmarked = illust.isBookmarked,
                 onBookmarkClick = { onBookmarkClick(illust.id) },
-                onDownloadClick = onDownloadClick,
+                onDownloadClick = downloadAction,
                 onShareClick = onShareClick
             )
         }
@@ -199,21 +229,44 @@ fun IllustDetailContent(
             // ✨ 关键修正：将图片轮播和作者资讯合并到同一个 item 中，以消除间距
             item(span = StaggeredGridItemSpan.FullLine) {
                 Column {
-                    // 1. 图片轮播
+                    // 1. 圖片輪播區塊
+                    val imageUrls = remember(illust) {
+                        if (illust.pageCount == 1) {
+                            listOf(illust.imageUrls.large ?: illust.imageUrls.medium)
+                        } else {
+                            illust.metaPages.map { it.imageUrls.large ?: it.imageUrls.medium ?: "" }
+                        }
+                    }
                     val pagerState = rememberPagerState(pageCount = { illust.pageCount })
-                    Box(contentAlignment = Alignment.BottomCenter) {
-                        HorizontalPager(
-                            state = pagerState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(500.dp)
-                        ) { pageIndex ->
-                            ZoomableAsyncImage(
-                                model = ImageRequest.Builder(context).data(imageUrls[pageIndex])
-                                    .crossfade(true).build(),
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(500.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null, // <--- 禁用涟漪
+                                onClick = {
+                                    val intent = ImageViewerActivity.newIntent(
+                                        context,
+                                        imageUrls.filterNotNull(),
+                                        pagerState.currentPage
+                                    )
+                                    context.startActivity(intent)
+                                }
+                            ),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        HorizontalPager(state = pagerState) { pageIndex ->
+                            // 預覽時使用 AsyncImage (不可縮放)
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(imageUrls.getOrNull(pageIndex))
+                                    .crossfade(true)
+                                    .build(),
                                 imageLoader = ImageLoaderFactory.getPixivImageLoader(context),
-                                contentDescription = null, modifier = Modifier.fillMaxSize(),
-                                state = rememberZoomableImageState(rememberZoomableState())
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
                             )
                         }
                         if (illust.pageCount > 1) {
@@ -224,8 +277,11 @@ fun IllustDetailContent(
                         }
                     }
 
-                    // 2. 作者资讯 (紧贴图片下方)
-                    AuthorSection(illust = illust, onToggleFollow = onToggleFollow)
+                    // 2. 作者資訊區塊 (緊貼圖片下方)
+                    AuthorSection(
+                        illust = illust,
+                        onToggleFollow = onToggleFollow
+                    )
                 }
             }
 
@@ -242,7 +298,8 @@ fun IllustDetailContent(
                     Text(
                         text = illust.title,
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.longPressToCopy(textToCopy = illust.title)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(

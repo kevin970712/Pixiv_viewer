@@ -1,23 +1,37 @@
 package com.android.pixivviewer.ui
 
 import android.content.Intent
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.android.pixivviewer.SearchActivity
-import com.android.pixivviewer.ui.components.IllustStaggeredGrid // ✨ 確保 Import 正確
 import com.android.pixivviewer.viewmodel.HomeViewModel
-import kotlinx.collections.immutable.ImmutableList // ✨ 確保 Import
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,7 +43,6 @@ fun HomeScreen(viewModel: HomeViewModel) {
 
     val scope = rememberCoroutineScope()
     val gridState: LazyStaggeredGridState = rememberLazyStaggeredGridState()
-    val showFab by remember { derivedStateOf { gridState.firstVisibleItemIndex > 5 } }
 
     // ✨ 關鍵修正 1：使用 remember 包裹所有會傳遞給子元件的 Lambda
     val onRefresh = remember(viewModel, context) {
@@ -56,7 +69,7 @@ fun HomeScreen(viewModel: HomeViewModel) {
                     }
                     IconButton(onClick = {
                         scope.launch { gridState.scrollToItem(0) }
-                        onRefresh() // ✨ 使用穩定的 Lambda
+                        onRefresh()
                     }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
@@ -64,12 +77,14 @@ fun HomeScreen(viewModel: HomeViewModel) {
             )
         },
         floatingActionButton = {
-            if (showFab) {
-                FloatingActionButton(onClick = {
-                    scope.launch { gridState.animateScrollToItem(0) }
-                }) {
-                    Icon(Icons.Default.ArrowUpward, contentDescription = "回到頂部")
+            FloatingActionButton(
+                onClick = {
+                    scope.launch {
+                        gridState.animateScrollToItem(0)
+                    }
                 }
+            ) {
+                Icon(Icons.Default.ArrowUpward, contentDescription = "回到頂部")
             }
         },
         contentWindowInsets = WindowInsets.navigationBars
@@ -88,7 +103,10 @@ fun HomeScreen(viewModel: HomeViewModel) {
                 IllustStaggeredGrid(
                     illusts = illusts,
                     gridState = gridState,
-                    onLoadMore = onLoadMore // ✨ 使用穩定的 Lambda
+                    onLoadMore = onLoadMore,
+                    onBookmarkClick = { illustId ->
+                        viewModel.toggleBookmark(context, illustId, isRanking = false)
+                    }
                 )
             }
         }

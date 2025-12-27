@@ -39,8 +39,6 @@ import coil.request.ImageRequest
 import com.android.pixivviewer.FollowingActivity
 import com.android.pixivviewer.UserBookmarksActivity
 import com.android.pixivviewer.network.UserDetailResponse
-import com.android.pixivviewer.ui.components.IllustStaggeredGrid
-import com.android.pixivviewer.ui.components.StatItem
 import com.android.pixivviewer.utils.ImageLoaderFactory
 import com.android.pixivviewer.viewmodel.UserViewModel
 
@@ -53,7 +51,7 @@ fun UserScreen(viewModel: UserViewModel, onBackClick: () -> Unit) {
     val onToggleFollow = remember(viewModel, context) {
         { viewModel.toggleFollow(context) }
     }
-    val onLoadMore = remember(viewModel, context) {
+    remember(viewModel, context) {
         { viewModel.loadMoreIllusts(context) }
     }
 
@@ -82,7 +80,12 @@ fun UserScreen(viewModel: UserViewModel, onBackClick: () -> Unit) {
                     )
                 }
             },
-            onLoadMore = onLoadMore
+            onLoadMore = { viewModel.loadMoreIllusts(context) },
+            // ✨ 關鍵修正：將 ViewModel 的方法傳遞進去
+            onBookmarkClick = { illustId ->
+                // 我們需要 UserViewModel 也有 toggleBookmark 的能力
+                viewModel.toggleBookmark(context, illustId)
+            }
         )
     }
 }
@@ -112,13 +115,14 @@ fun UserProfileContent(
         Text(
             text = detail.user.name,
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.longPressToCopy(textToCopy = detail.user.name)
         )
-
         Text(
             text = "@${detail.user.account}",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.longPressToCopy(textToCopy = detail.user.account)
         )
 
         Spacer(modifier = Modifier.height(16.dp))

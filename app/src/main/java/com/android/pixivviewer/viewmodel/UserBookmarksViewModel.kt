@@ -6,14 +6,14 @@ import androidx.lifecycle.viewModelScope
 import com.android.pixivviewer.network.Illust
 import com.android.pixivviewer.network.NetworkModule
 import com.android.pixivviewer.network.UserFollowingResponse
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import retrofit2.http.GET
 import retrofit2.http.Url
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 
 interface FollowingApi {
     @GET

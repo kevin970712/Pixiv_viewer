@@ -8,12 +8,12 @@ import com.android.pixivviewer.network.NetworkModule
 import com.android.pixivviewer.network.User
 import com.android.pixivviewer.network.UserPreview
 import com.android.pixivviewer.utils.TokenManager
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
 
 enum class NewWorksPage {
     Activity,
@@ -64,6 +64,30 @@ class NewWorksViewModel : ViewModel() {
         }
     }
 
+    fun toggleBookmark(context: Context, illustId: Long) {
+        viewModelScope.launch {
+            val targetIllust = _activityIllusts.value.find { it.id == illustId } ?: return@launch
+
+            try {
+                val api = NetworkModule.provideApiClient(context)
+                if (targetIllust.isBookmarked) {
+                    api.deleteBookmark(illustId)
+                } else {
+                    api.addBookmark(illustId)
+                }
+
+                // 乐观点更新 UI
+                val updatedList = _activityIllusts.value.map {
+                    if (it.id == illustId) it.copy(isBookmarked = !it.isBookmarked) else it
+                }.toImmutableList()
+                _activityIllusts.value = updatedList
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     // --- 動態 (Activity) 相關 ---
     fun fetchActivity(context: Context) {
         if (_activityIllusts.value.isNotEmpty()) return
@@ -93,7 +117,8 @@ class NewWorksViewModel : ViewModel() {
             try {
                 val api = NetworkModule.provideApiClient(context)
                 val response = api.getNextPage(activityNextUrl!!)
-                _activityIllusts.value = (_activityIllusts.value + response.illusts).toImmutableList()
+                _activityIllusts.value =
+                    (_activityIllusts.value + response.illusts).toImmutableList()
                 activityNextUrl = response.nextUrl
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -133,7 +158,8 @@ class NewWorksViewModel : ViewModel() {
             try {
                 val api = NetworkModule.provideApiClient(context) as FollowingApi
                 val response = api.getNextUserFollowingPage(followingNextUrl!!)
-                _followingUsers.value = (_followingUsers.value + response.userPreviews).toImmutableList()
+                _followingUsers.value =
+                    (_followingUsers.value + response.userPreviews).toImmutableList()
                 followingNextUrl = response.nextUrl
             } catch (e: Exception) {
                 e.printStackTrace()
